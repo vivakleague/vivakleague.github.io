@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>서울 이랜드 FC · 경기 전 홍보 리포트</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="header">
+  <div class="header-top" style="justify-content:space-between;">
+    <div style="display:flex;align-items:center;gap:16px;">
+      <div class="club-badge">SEFC</div>
+      <div>
+        <div class="header-title">MATCH PREVIEW REPORT</div>
+        <div class="header-sub">서울 이랜드 FC · 경기 전 홍보 소재 자동 분석</div>
+      </div>
+    </div>
+    
+  </div>
+</div>
+
+
+</div>
+
+<div class="form-section">
+  <div style="display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;">
+    <div class="form-group" style="min-width:180px;">
+      <label>다음 경기 선택</label>
+      <select id="inp-match" style="background:var(--navy3);border:1px solid var(--border);color:var(--white);padding:9px 12px;border-radius:6px;font-size:0.85rem;font-family:'Noto Sans KR',sans-serif;width:100%;outline:none;">
+        <option value="">— 경기 선택 —</option>
+      </select>
+    </div>
+    <div class="form-group" style="min-width:120px;">
+      <label>상대팀 <span style="font-size:.65rem;color:var(--gray)">(직접 입력 가능)</span></label>
+      <input type="text" id="inp-opponent" placeholder="예: 화성" style="background:var(--navy3);border:1px solid var(--border);color:var(--white);padding:9px 12px;border-radius:6px;font-size:0.85rem;font-family:'Noto Sans KR',sans-serif;width:100%;outline:none;">
+    </div>
+    <div id="match-info-preview" style="display:none;padding:8px 14px;background:var(--navy3);border-radius:6px;border:1px solid var(--border);font-size:0.8rem;color:var(--gray);">
+    </div>
+    <button class="btn-run" id="btn-run-report">▶ 분석 실행</button>
+  </div>
+</div>
+
+<div class="main" id="main-content">
+  <div style="color:var(--gray);font-size:0.85rem;padding:40px 0;text-align:center;">
+    상대팀과 경기 정보를 입력하고 분석 실행 버튼을 눌러주세요.
+  </div>
+</div>
+
+<script src="script.js"></script>
+
+<div style="background:#06101f;border-top:1px solid #1e3060;padding:18px 32px;margin-top:40px;">
+  <div style="max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div style="width:32px;height:32px;background:var(--gold);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue',sans-serif;font-size:.75rem;color:var(--navy);flex-shrink:0">SEFC</div>
+      <div style="font-size:.72rem;color:#4a5a7a;letter-spacing:.5px">서울 이랜드 FC 홍보팀</div>
+    </div>
+    <div style="display:flex;gap:24px;flex-wrap:wrap;">
+      <div style="font-size:.72rem;color:#6a7a9a">
+        <span style="color:#8a9ab8;font-weight:700">김예현 팀장</span>
+        <span style="color:#4a5a7a;margin-left:6px">010-9737-1207</span>
+      </div>
+      <div style="font-size:.72rem;color:#6a7a9a">
+        <span style="color:#8a9ab8;font-weight:700">한동민 매니저</span>
+        <span style="color:#4a5a7a;margin-left:6px">010-2364-7084</span>
+      </div>
+      <div style="font-size:.72rem;color:#6a7a9a">
+        <span style="color:#8a9ab8;font-weight:700">최영찬 매니저</span>
+        <span style="color:#4a5a7a;margin-left:6px">010-6243-3430</span>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
