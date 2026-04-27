@@ -1053,7 +1053,7 @@ function managerRecord(matches) {
 
 
 function renderBigWins(bigW) {
-  return bigW.map(m => {
+  return (bigW||[]).map(m => {
     const dateKey = m.dateKey;
     const det = MATCH_DETAILS[dateKey];
     const sd = SCORER_DATA[dateKey];
@@ -1237,6 +1237,14 @@ function vsRecord(matches, opp, nextVenue, nextDate) {
     curUnbeaten, curHUnbeaten,
     firstHomeWin: nextVenue==='H' && wH.length===0,
     daysSinceLastWin: lastWin&&nextDate? daysBetween(lastWin.date, nextDate): null,
+    seasonStats: (function(){
+      const bySeason={};
+      vs.forEach(function(m){ if(!bySeason[m.season]) bySeason[m.season]=[]; bySeason[m.season].push(m); });
+      return Object.entries(bySeason).sort(function(a,b){return +b[0]-+a[0];}).map(function(entry){
+        var s=entry[0], ms=entry[1];
+        return {season:+s, w:ms.filter(function(m){return m.result==='W';}).length, d:ms.filter(function(m){return m.result==='D';}).length, l:ms.filter(function(m){return m.result==='L';}).length, gf:ms.reduce(function(sum,m){return sum+m.gf;},0), ga:ms.reduce(function(sum,m){return sum+m.ga;},0), games:ms.length};
+      });
+    })(),
   };
 }
 
@@ -1342,7 +1350,7 @@ function seasonCompare(matches) {
     bySeason[m.season].push(m);
   }
   return Object.entries(bySeason).map(([s,ms])=>{
-    const first8=ms.slice(0,9);
+    const first8=ms.slice(0,8);
     return { season:+s, games:first8.length,
       w:first8.filter(m=>m.result==='W').length,
       d:first8.filter(m=>m.result==='D').length,
@@ -1389,7 +1397,7 @@ function renderReport(opp, venue, nextDate, wdJS) {
   const cat3 = []; // 특이 기록
 
   // CAT1: 구단 통산
-    cat1.push(`현재 <strong>${streaks.current}연승</strong> 진행 중`);
+  if(streaks.current >= 3) cat1.push(`현재 <strong>${streaks.current}연승</strong> 진행 중`);
   cat1.push(`김도균 감독 체제: <strong>${cr.w}승 ${cr.d}무 ${cr.l}패</strong> (${cr.games}경기)`);
   if(streaks.current>=4 && streaks.daysSinceLast5)
     cat1.push(`5연승 달성 시 — 구단 역대 <strong>${streaks.fivePlusCount+1}번째</strong> · 마지막 5연승 이후 <strong>${streaks.daysSinceLast5}일</strong>만`);
@@ -1399,9 +1407,9 @@ function renderReport(opp, venue, nextDate, wdJS) {
   if(venue==='H' && ha.homeCur>2) cat1.push(`홈 <strong>${ha.homeCur}경기 연속 무패</strong> (역대 최다 ${ha.homeMax}경기)`);
   if(venue==='A' && ha.awayCur>2) cat1.push(`원정 <strong>${ha.awayCur}경기 연속 무패</strong> (역대 최다 ${ha.awayMax}경기)`);
   if(curSeason){
-    const ranked=seasons.filter(s=>s.games===8).sort((a,b)=>b.pts-a.pts);
+    const ranked=seasons.filter(s=>curSeason && s.games===curSeason.games).sort((a,b)=>b.pts-a.pts);
     const rank=ranked.findIndex(s=>s.season===2026)+1;
-    cat1.push(`2026시즌 초반 9경기 <strong>${curSeason.pts}점</strong> — 역대 ${rank}위`);
+    cat1.push(`2026시즌 초반 8경기 <strong>${curSeason.pts}점</strong> — 역대 ${rank}위`);
   }
 
   // CAT2: 상대 관련
@@ -1424,13 +1432,92 @@ function renderReport(opp, venue, nextDate, wdJS) {
 
   // CAT3: 특이 기록
   if(nextDate){
-    cat3.push(`${wdName} <strong>${wd.curUnbeaten}경기 연속 무패</strong> 진행 중 (${wd.curUnbeatenW}승 ${wd.curUnbeatenD}무)`);
-    if(wd.lastLoss) cat3.push(`마지막 ${wdName} 패배: <strong>${wd.lastLoss.date}</strong> vs ${wd.lastLoss.opp} ${wd.lastLoss.score}`);
-    cat3.push(`${wdName} 통산: ${wd.w}승 ${wd.d}무 ${wd.l}패 (총 ${wd.total}경기)`);
+    if(wd.curUnbeaten >= 3) cat3.push(`${wdName}요일 <strong>${wd.curUnbeaten}경기 연속 무패</strong> 진행 중 (${wd.curUnbeatenW}승 ${wd.curUnbeatenD}무)`);
   }
-  cat3.push(`구단 최다 연승: <strong>${streaks.max}연승</strong>`);
-  if(streaks.fivePlus.length>0)
-    cat3.push(`역대 5연승: ${streaks.fivePlus.map(s=>s.start.slice(0,4)+'('+s.n+'연승)').join(' / ')}`);
+
+  // 최근 N경기 무패
+  let recentUnbeaten2=0;
+  for(let ri=leagueMatches.length-1;ri>=0;ri--){
+    if(leagueMatches[ri].result!=='L') recentUnbeaten2++;
+    else break;
+  }
+  if(recentUnbeaten2>=5){
+    const ruW2=leagueMatches.slice(-recentUnbeaten2).filter(m=>m.result==='W').length;
+    cat3.push(`최근 <strong>${recentUnbeaten2}경기 무패</strong> (${ruW2}승 ${recentUnbeaten2-ruW2}무)`);
+  }
+
+  // 홈/원정 무패
+  if(venue==='H'){
+    const homeM2=leagueMatches.filter(m=>m.venue==='H');
+    let homeCur2=0;
+    for(let i=homeM2.length-1;i>=0;i--){ if(homeM2[i].result!=='L') homeCur2++; else break; }
+    if(homeCur2>=3) cat3.push(`홈 <strong>${homeCur2}경기 연속 무패</strong>`);
+  } else {
+    const awayM2=leagueMatches.filter(m=>m.venue==='A');
+    let awayCur2=0;
+    for(let i=awayM2.length-1;i>=0;i--){ if(awayM2[i].result!=='L') awayCur2++; else break; }
+    if(awayCur2>=3) cat3.push(`원정 <strong>${awayCur2}경기 연속 무패</strong>`);
+  }
+
+  // 최근 3경기 득실점
+  const r3c=leagueMatches.slice(-3);
+  const gf3c=r3c.reduce((s,m)=>s+m.gf,0);
+  const ga3c=r3c.reduce((s,m)=>s+m.ga,0);
+  if(gf3c>=9) cat3.push(`최근 3경기 <strong>${gf3c}득점 ${ga3c}실점</strong>`);
+  if(ga3c<=1) cat3.push(`최근 3경기 <strong>${ga3c}실점</strong> — 수비 강세`);
+
+  // 연속 득점/무실점
+  // 연속 득점은 위에서 처리
+  if(scoring.curClean>=3) cat3.push(`최근 <strong>${scoring.curClean}경기 연속 무실점</strong>`);
+
+  // 연속 득점 (조건 없이 표시)
+  if(scoring.curScoring>=1) cat3.push(`최근 <strong>${scoring.curScoring}경기 연속 득점</strong> 중`);
+
+  // 월별 전적 (김도균 감독)
+  if(nextDate){
+    const nextMo2=nextDate.getMonth()+1;
+    const moNm={2:'2월',3:'3월',4:'4월',5:'5월',6:'6월',7:'7월',8:'8월',9:'9월',10:'10월',11:'11월',12:'12월'};
+    const moNm2=moNm[nextMo2]||'';
+    const kimAll3=matches.filter(m=>m.season>=2024 && m.match_no!==0);
+    const moAll2=kimAll3.filter(m=>m.date.getMonth()+1===nextMo2);
+    const moH=moAll2.filter(m=>m.venue==='H');
+    const moA=moAll2.filter(m=>m.venue==='A');
+    const moV=venue==='H'?moH:moA;
+    const vLb=venue==='H'?'홈':'원정';
+
+    // 5월 전체 전적
+    if(moAll2.length>=3){
+      const maW=moAll2.filter(m=>m.result==='W').length;
+      const maD=moAll2.filter(m=>m.result==='D').length;
+      const maL=moAll2.filter(m=>m.result==='L').length;
+      const maWr=(maW/moAll2.length*100).toFixed(0);
+      cat3.push(`${moNm2} 전적 (김도균): <strong>${maW}승 ${maD}무 ${maL}패</strong> 승률${maWr}%`);
+    }
+
+    // 5월 홈 전적
+    if(moH.length>=2){
+      const mhW=moH.filter(m=>m.result==='W').length;
+      const mhD=moH.filter(m=>m.result==='D').length;
+      const mhL=moH.filter(m=>m.result==='L').length;
+      cat3.push(`${moNm2} 홈 전적: <strong>${mhW}승 ${mhD}무 ${mhL}패</strong>`);
+    }
+
+    // 5월 원정 전적 (홈 경기면 참고용으로 표시)
+    if(moA.length>=2){
+      const maW2=moA.filter(m=>m.result==='W').length;
+      const maD2=moA.filter(m=>m.result==='D').length;
+      const maL2=moA.filter(m=>m.result==='L').length;
+      const maWr2=(maW2/moA.length*100).toFixed(0);
+      if(+maWr2>=60) cat3.push(`${moNm2} 원정: <strong>${maW2}승 ${maD2}무 ${maL2}패</strong> 승률${maWr2}%`);
+    }
+
+    // 5월 득점율
+    if(moAll2.length>=3){
+      const moScored=moAll2.filter(m=>m.gf>0).length;
+      const moScoredRate=(moScored/moAll2.length*100).toFixed(0);
+      cat3.push(`${moNm2} 득점율: <strong>${moAll2.length}경기 중 ${moScored}경기 득점</strong> (${moScoredRate}%)`);
+    }
+  }
 
   // HTML 조립
   let html = `
@@ -1459,192 +1546,29 @@ function renderReport(opp, venue, nextDate, wdJS) {
       <div>
         <div style="font-size:.65rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);font-weight:700;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--gold-dim);">🏆 구단 통산</div>
         <ul class="report-list">
-          ${cat1.map(it=>`<li class="report-item">${it}</li>`).join('')}
+          ${(cat1||[]).map(it=>`<li class="report-item">${it}</li>`).join('')}
         </ul>
       </div>
 
       <div>
         <div style="font-size:.65rem;letter-spacing:1.5px;text-transform:uppercase;color:#5e9bdc;font-weight:700;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #1f3a60;">⚔️ 상대 전적</div>
         <ul class="report-list" style="--item-border:var(--draw);">
-          ${cat2.map(it=>`<li class="report-item" style="border-left-color:#5e9bdc">${it}</li>`).join('')}
+          ${(cat2||[]).map(it=>`<li class="report-item" style="border-left-color:#5e9bdc">${it}</li>`).join('')}
         </ul>
       </div>
 
       <div>
         <div style="font-size:.65rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--green);font-weight:700;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #1a4030;">⚡ 특이 기록</div>
         <ul class="report-list">
-          ${cat3.map(it=>`<li class="report-item" style="border-left-color:var(--green)">${it}</li>`).join('')}
+          ${(cat3||[]).map(it=>`<li class="report-item" style="border-left-color:var(--green)">${it}</li>`).join('')}
         </ul>
       </div>
 
     </div>
   </div>
 
-  <div class="grid-2">
-    <div class="card">
-      <div class="card-title">상대전적 · ${opp}</div>
-      ${vs.found ? `
-      <div class="stat-row" style="margin-bottom:14px;">
-        <div class="stat-item"><div class="num green">${vs.w}</div><div class="lbl">승</div></div>
-        <div class="stat-item"><div class="num blue">${vs.d}</div><div class="lbl">무</div></div>
-        <div class="stat-item"><div class="num red">${vs.l}</div><div class="lbl">패</div></div>
-        <div class="stat-item"><div class="num">${vs.gf}</div><div class="lbl">득점</div></div>
-        <div class="stat-item"><div class="num">${vs.ga}</div><div class="lbl">실점</div></div>
-        <div class="stat-item"><div class="num">${vs.total}</div><div class="lbl">경기</div></div>
-      </div>
-      ${hl(venue==='H'?'홈 전적':'원정 전적', venue==='H'?`${vs.homeW}승 ${vs.homeD}무 ${vs.homeL}패 / ${vs.homeGF}득 ${vs.homeGA}실`:`${vs.awayW}승 ${vs.awayD}무 ${vs.awayL}패`)}
-      ${vs.lastWin?hl('마지막 승리',`<strong>${vs.lastWin.date}</strong> ${vs.lastWin.score} (${vs.lastWin.venue})${vs.daysSinceLastWin?' · '+vs.daysSinceLastWin+'일 전':''}`,'gold'):'<div class="empty">통산 승리 없음</div>'}
-      ${venue==='H'?(vs.firstHomeWin?hl('홈 승리 이력','없음 → 승리 시 <strong style="color:var(--gold2)">첫 홈 승리</strong>!','gold'):vs.lastHWin?hl('마지막 홈 승리',`${vs.lastHWin.date} ${vs.lastHWin.score}`):''):''}
-      ${vs.curUnbeaten>0?hl('현재 연속 무패',`<strong>${vs.curUnbeaten}경기</strong> 무패 중 (vs ${opp})`,'blue'):''}
-      <div style="margin-top:10px;font-size:.72rem;color:var(--gray);">맞대결 합산 ${vs.totalGoals}골 · 경기평균 ${vs.avgGoals}골</div>
-      ` : `<div class="empty">데이터 없음 (첫 맞대결)</div>`}
-    </div>
-
-    <div class="card">
-      <div class="card-title">현재 연승 · 구단 기록</div>
-      <div style="display:flex;align-items:flex-end;gap:16px;margin-bottom:16px;">
-        <div><div class="big-num">${streaks.current}</div><div class="big-label">연승 진행 중</div></div>
-        <div style="color:var(--gray);font-size:.8rem;">/ 구단 최다 ${streaks.max}연승</div>
-      </div>
-      ${streaks.current>=4&&streaks.daysSinceLast5?hl('5연승 달성 시',`구단 역대 <strong>${streaks.fivePlusCount+1}번째</strong> · 마지막 달성 이후 <strong>${streaks.daysSinceLast5}일</strong>만`,'gold'):''}
-      <div style="margin-top:12px;">
-        <div class="card-title" style="margin-bottom:8px;">역대 5연승 기록</div>
-        ${streaks.fivePlus.map((s,i)=>`
-          <div class="highlight" style="margin-bottom:6px;">
-            <div class="highlight-label">${i+1}. ${s.n}연승 · ${s.start} ~ ${s.endAll}</div>
-            <div class="highlight-val" style="font-size:.78rem;">${s.opps.slice(0,s.n).join(' → ')}</div>
-          </div>`).join('')}
-      </div>
-    </div>
-  </div>
-
-  <div class="grid-3">
-    <div class="card">
-      <div class="card-title">${wd.name}요일 기록</div>
-      <div style="display:flex;align-items:flex-end;gap:12px;margin-bottom:14px;">
-        <div><div class="big-num">${wd.curUnbeaten}</div><div class="big-label">연속 무패</div></div>
-      </div>
-      <div class="stat-row">
-        <div class="stat-item"><div class="num green">${wd.w}</div><div class="lbl">승</div></div>
-        <div class="stat-item"><div class="num blue">${wd.d}</div><div class="lbl">무</div></div>
-        <div class="stat-item"><div class="num red">${wd.l}</div><div class="lbl">패</div></div>
-        <div class="stat-item"><div class="num">${wd.total}</div><div class="lbl">총경기</div></div>
-      </div>
-      ${wd.lastLoss?hl('마지막 패배',`${wd.lastLoss.date} vs ${wd.lastLoss.opp} ${wd.lastLoss.score}`):'<div class="empty" style="margin-top:8px;">패배 기록 없음</div>'}
-    </div>
-
-    <div class="card">
-      <div class="card-title">득실 연속 기록</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
-        <div class="highlight gold"><div class="highlight-label">연속 득점</div><div class="big-num-sm">${scoring.curScoring}</div><div class="big-label">경기 (역대최다 ${scoring.maxScoring})</div></div>
-        <div class="highlight blue"><div class="highlight-label">연속 무실점</div><div class="big-num-sm">${scoring.curClean}</div><div class="big-label">경기 (역대최다 ${scoring.maxClean})</div></div>
-      </div>
-      <div class="card-title" style="margin-bottom:6px;">최근 4경기</div>
-      <div class="game-list">
-        ${recent.games.map(m=>{
-          const dk = m.dateKey;
-          const sd = SCORER_DATA[dk];
-          const scorerStr = sd && sd.s.length ? sd.s.join(', ') : '';
-          const momStr = sd && sd.m ? ' · MOM: ' + sd.m : '';
-          const crowdStr = sd && sd.c ? ' · ' + sd.c.toLocaleString() + '명' : '';
-          return '<div class="game-row" style="flex-direction:column;align-items:flex-start;gap:3px;padding:8px 10px">'
-            + '<div style="display:flex;align-items:center;gap:10px;width:100%">'
-            + '<span class="g-date">' + (m.date.getMonth()+1) + '.' + m.date.getDate() + '</span>'
-            + '<span class="g-opp">vs ' + m.opponent + ' <span style="font-size:.65rem;color:' + (m.venue==='H'?'#4a9eff':'var(--gray)') + '">(' + (m.venue==='H'?'홈':'원정') + ')</span></span>'
-            + '<span style="flex:1;font-size:.68rem;color:var(--gray)">' + crowdStr + '</span>'
-            + '<span class="g-score">' + m.gf + '-' + m.ga + '</span>'
-            + '<span class="g-res ' + m.result + '">' + m.result + '</span>'
-            + '</div>'
-            + (scorerStr ? '<div style="font-size:.7rem;color:var(--gray);padding-left:40px">⚽ ' + scorerStr + momStr + '</div>' : '')
-            + '</div>';
-        }).join('')}
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-title">홈 / 원정 무패 기록</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
-        <div class="highlight gold">
-          <div class="highlight-label">홈 연속 무패</div>
-          <div class="big-num-sm">${ha.homeCur}</div>
-          <div class="big-label">역대최다 ${ha.homeMax}</div>
-        </div>
-        <div class="highlight blue">
-          <div class="highlight-label">원정 연속 무패</div>
-          <div class="big-num-sm">${ha.awayCur}</div>
-          <div class="big-label">역대최다 ${ha.awayMax}</div>
-        </div>
-      </div>
-      <div style="font-size:.75rem;color:var(--gray);display:flex;flex-direction:column;gap:4px;">
-        <div>홈 통산: <span style="color:var(--green)">${ha.homeW}승</span> ${ha.homeD}무 <span style="color:var(--red)">${ha.homeL}패</span></div>
-        <div>원정 통산: <span style="color:var(--green)">${ha.awayW}승</span> ${ha.awayD}무 <span style="color:var(--red)">${ha.awayL}패</span></div>
-      </div>
-    </div>
-  </div>
-
   <div class="grid-full">
-    <div class="card">
-      <div class="card-title">시즌 초반 9경기 성적 비교 (역대)</div>
-      <div style="overflow-x:auto;">
-        <table class="season-table">
-          <thead><tr>
-            <th>시즌</th><th>경기</th><th>승</th><th>무</th><th>패</th>
-            <th>득</th><th>실</th><th>승점</th><th></th>
-          </tr></thead>
-          <tbody>
-            ${seasons.filter(s=>s.games===8).sort((a,b)=>b.pts-a.pts).map(s=>`
-              <tr class="${s.season===2026?'current-season':''}">
-                <td>${s.season}${s.season===2026?' ★':''}</td>
-                <td>${s.games}</td>
-                <td style="color:var(--green)">${s.w}</td>
-                <td style="color:var(--draw)">${s.d}</td>
-                <td style="color:var(--red)">${s.l}</td>
-                <td>${s.gf}</td><td>${s.ga}</td>
-                <td><strong>${s.pts}</strong></td>
-                <td><span class="pts-bar" style="width:${Math.round(s.pts/28*80)}px"></span></td>
-              </tr>`).join('')}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <div class="grid-full">
-    <div class="card">
-      <div class="card-title">역대 감독 체제별 전적</div>
-      <div style="overflow-x:auto;">
-        <table class="season-table">
-          <thead><tr>
-            <th>감독</th><th>재임기간</th>
-            <th colspan="4" style="border-bottom:2px solid var(--gold);color:var(--gold)">정규리그</th>
-            <th colspan="4" style="border-bottom:2px solid var(--gray2);color:var(--gray)">전체(FA컵+PO포함)</th>
-          </tr><tr>
-            <th></th><th></th>
-            <th>승</th><th>무</th><th>패</th><th>승점</th>
-            <th>승</th><th>무</th><th>패</th><th>승점</th>
-          </tr></thead>
-          <tbody>
-            ${[...MANAGERS].reverse().map(m => {
-              const r  = mgrData.byManager[m.name]    || {w:0,d:0,l:0,games:0};
-              const ra = mgrData.byManagerAll[m.name] || {w:0,d:0,l:0,games:0};
-              const isCurrent = m.name === curMgr;
-              return `<tr class="${isCurrent?'current-season':''}">
-                <td>${m.name}${isCurrent?' ▶':''}</td>
-                <td style="color:var(--gray);font-size:.72rem">${m.start.slice(0,7)} ~ ${isCurrent?'현재':m.end.slice(0,7)}</td>
-                <td style="color:var(--green)">${r.w}</td>
-                <td style="color:var(--draw)">${r.d}</td>
-                <td style="color:var(--red)">${r.l}</td>
-                <td><strong>${r.w*3+r.d}</strong></td>
-                <td style="color:var(--green);opacity:.7">${ra.w}</td>
-                <td style="color:var(--draw);opacity:.7">${ra.d}</td>
-                <td style="color:var(--red);opacity:.7">${ra.l}</td>
-                <td style="opacity:.7">${ra.w*3+ra.d}</td>
-              </tr>`;
-            }).join('')}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    ${renderVsCard(vs, opp, venue)}
   </div>
 
   <div class="grid-full">
@@ -1711,6 +1635,334 @@ function buildManagerTableRows(mgrStats) {
       + '</tr>';
   }).join('');
 }
+
+
+function renderVsCard(vs, opp, venue) {
+  if(!vs.found) {
+    return '<div class="card" style="padding:40px;text-align:center;color:var(--gray)">첫 맞대결 — 데이터 없음</div>';
+  }
+
+  var tot = vs.total;
+  var wPct = tot ? (vs.w/tot*100).toFixed(0) : 0;
+  var dPct = tot ? (vs.d/tot*100).toFixed(0) : 0;
+  var lPct = tot ? (vs.l/tot*100).toFixed(0) : 0;
+  var venueLabel = venue==='H' ? '🏠 홈 전적' : '✈️ 원정 전적';
+  var venueRecord = venue==='H'
+    ? (vs.homeW + '승 ' + vs.homeD + '무 ' + vs.homeL + '패')
+    : (vs.awayW + '승 ' + vs.awayD + '무 ' + vs.awayL + '패');
+  var venueGoals = venue==='H' ? (vs.homeGF + '득점 ' + vs.homeGA + '실점') : '';
+
+  // 마지막 승리
+  var lastWinHtml = '';
+  if(vs.lastWin) {
+    lastWinHtml = '<div style="font-size:.9rem;font-weight:700;color:var(--gold2)">' + vs.lastWin.date + '</div>'
+      + '<div style="font-size:.75rem;color:var(--white);margin-top:2px">' + vs.lastWin.score + ' · ' + vs.lastWin.venue + (vs.daysSinceLastWin?' · '+vs.daysSinceLastWin+'일 전':'') + '</div>';
+  } else {
+    lastWinHtml = '<div style="font-size:.85rem;color:var(--gray)">승리 없음</div>'
+      + (venue==='H' ? '<div style="font-size:.72rem;color:var(--gold2);margin-top:4px">★ 승리 시 홈 첫 승 달성!</div>' : '');
+  }
+
+  // 연속 무패
+  var unbeatenHtml = '';
+  if(vs.curUnbeaten > 0) {
+    unbeatenHtml = '<div style="padding:12px 24px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);background:rgba(46,204,113,.06);">'
+      + '<div style="font-family:\'Bebas Neue\',sans-serif;font-size:2rem;color:#2ecc71;line-height:1">' + vs.curUnbeaten + '</div>'
+      + '<div><div style="font-size:.75rem;font-weight:700;color:#2ecc71">경기 연속 무패 진행 중</div>'
+      + '<div style="font-size:.68rem;color:var(--gray)">vs ' + opp + '</div></div>'
+      + '</div>';
+  }
+
+  // 시즌별 전적
+  var seasonHtml = (vs.seasonStats||[]).map(function(s) {
+    var stot = s.w+s.d+s.l;
+    var swPct = stot ? s.w/stot : 0;
+    var sdPct = stot ? s.d/stot : 0;
+    var slPct = stot ? s.l/stot : 0;
+    var isLatest = s.season === 2026;
+    return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">'
+      + '<span style="font-size:.72rem;color:' + (isLatest?'var(--gold2)':'var(--gray)') + ';width:36px;flex-shrink:0;font-weight:' + (isLatest?700:400) + '">' + s.season + '</span>'
+      + '<div style="flex:1;height:6px;background:var(--navy3);border-radius:3px;overflow:hidden;display:flex;">'
+      + '<div style="flex:' + swPct + ';background:#2ecc71;min-width:' + (s.w>0?'4px':'0') + '"></div>'
+      + '<div style="flex:' + sdPct + ';background:#5e9bdc;min-width:' + (s.d>0?'2px':'0') + '"></div>'
+      + '<div style="flex:' + slPct + ';background:#e74c3c;min-width:' + (s.l>0?'4px':'0') + '"></div>'
+      + '</div>'
+      + '<span style="font-size:.68rem;color:var(--gray);width:72px;flex-shrink:0;text-align:right">' + s.w + '승' + s.d + '무' + s.l + '패</span>'
+      + '</div>';
+  }).join('');
+
+  return '<div class="card" style="padding:0;overflow:hidden;">'
+    // 헤더
+    + '<div style="background:linear-gradient(135deg,#0d1f3c 0%,#152a4a 100%);padding:18px 24px 14px;">'
+    + '<div style="font-size:.62rem;letter-spacing:2px;color:var(--gray);text-transform:uppercase;margin-bottom:4px">HEAD TO HEAD</div>'
+    + '<div style="font-size:1.15rem;font-weight:700;color:var(--white)">서울 이랜드 FC <span style="color:var(--gray);font-size:.85rem;font-weight:400"> vs </span>' + opp + '</div>'
+    + '<div style="font-size:.68rem;color:var(--gray);margin-top:3px">K리그 정규리그 기준 · 총 ' + tot + '경기</div>'
+    + '</div>'
+    // 승무패 바
+    + '<div style="display:flex;height:8px;">'
+    + '<div style="flex:' + vs.w + ';background:#2ecc71"></div>'
+    + '<div style="flex:' + vs.d + ';background:#5e9bdc"></div>'
+    + '<div style="flex:' + vs.l + ';background:#e74c3c"></div>'
+    + '</div>'
+    + '<div style="display:flex;justify-content:space-between;padding:4px 24px 0;font-size:.65rem;">'
+    + '<span style="color:#2ecc71">승 ' + wPct + '%</span>'
+    + '<span style="color:#5e9bdc">무 ' + dPct + '%</span>'
+    + '<span style="color:#e74c3c">패 ' + lPct + '%</span>'
+    + '</div>'
+    // 수치
+    + '<div style="display:grid;grid-template-columns:repeat(6,1fr);padding:14px 24px;border-bottom:1px solid var(--border);">'
+    + ['<span style="color:#2ecc71">'+vs.w+'</span>승', '<span style="color:#5e9bdc">'+vs.d+'</span>무', '<span style="color:#e74c3c">'+vs.l+'</span>패', '<span style="color:var(--gold2)">'+vs.gf+'</span>득', vs.ga+'실', vs.avgGoals+'골/경기'].map(function(v,i){
+        return '<div style="text-align:center"><div style="font-family:\'Bebas Neue\',sans-serif;font-size:1.8rem;line-height:1">' + v + '</div></div>';
+      }).join('')
+    + '</div>'
+    // 홈/원정 + 마지막 승리
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid var(--border);">'
+    + '<div style="padding:12px 20px;border-right:1px solid var(--border);">'
+    + '<div style="font-size:.62rem;color:var(--gray);margin-bottom:5px">' + venueLabel + '</div>'
+    + '<div style="font-size:.95rem;font-weight:700;color:var(--white)">' + venueRecord + '</div>'
+    + '<div style="font-size:.7rem;color:var(--gray);margin-top:1px">' + venueGoals + '</div>'
+    + '</div>'
+    + '<div style="padding:12px 20px;">'
+    + '<div style="font-size:.62rem;color:var(--gray);margin-bottom:5px">🏆 마지막 승리</div>'
+    + lastWinHtml
+    + '</div>'
+    + '</div>'
+    // 연속 무패
+    + unbeatenHtml
+    // 시즌별
+    + '<div style="padding:14px 24px;">'
+    + '<div style="font-size:.62rem;letter-spacing:1px;color:var(--gray);margin-bottom:8px">시즌별 전적</div>'
+    + seasonHtml
+    + '</div>'
+    + '</div>';
+}
+
+function renderAITab() {
+  var container = document.getElementById('ai-container');
+  if(!container) return;
+
+  var oppEl = document.getElementById('inp-opponent');
+  var opp = oppEl ? oppEl.value.trim() : '';
+  if(!opp) {
+    container.innerHTML = '<div class="card" style="text-align:center;padding:40px;"><div style="color:var(--gray);font-size:.9rem;">경기를 먼저 선택하고 분석 실행 후 이 탭을 열어주세요.</div></div>';
+    return;
+  }
+
+  // 데이터 수집
+  var matches = buildMatches();
+  var leagueM = matches.filter(function(m){ return m.isLeague; });
+  var vs = vsRecord(matches, opp, '', null);
+  var streaks = winStreaks(leagueM, null);
+  var recent = recentForm(leagueM, 5);
+  var scoring = scoringStreaks(leagueM);
+  var mgrData = managerRecord(matches);
+  var cr = mgrData.curRecord;
+
+  var matchIdx = document.getElementById('inp-match') ? document.getElementById('inp-match').value : '';
+  var nextVenue = 'H', nextDate = null;
+  if(matchIdx !== '') { var sch = SCHEDULE[+matchIdx]; nextVenue = sch[3]; nextDate = parseDate(sch[2]); }
+
+  // 2026 홈 성적
+  var home2026 = leagueM.filter(function(m){ return m.season===2026 && m.venue==='H'; });
+  var hw=home2026.filter(function(m){return m.result==='W';}).length;
+  var hd=home2026.filter(function(m){return m.result==='D';}).length;
+  var hl_=home2026.filter(function(m){return m.result==='L';}).length;
+
+  // ── 규칙별 소재 발굴 ────────────────────────────────────────
+  var items = []; // {rule, label, text, score}
+
+  function add(rule, label, text, score) {
+    items.push({rule:rule, label:label, text:text, score:score||0});
+  }
+
+  // 규칙 1: 연승
+  if(streaks.current >= 3) {
+    var nextN = streaks.current + 1;
+    add(1, '연승', '현재 ' + streaks.current + '연승 진행 중 → ' + nextN + '연승 도전', streaks.current >= 4 ? 5 : streaks.current >= 3 ? 4 : 3);
+    if(streaks.current >= 4) {
+      add(1, '연승 표현', '"상승가도", "파죽지세" 표현 활용 가능', 4);
+    }
+    if(streaks.fivePlusCount !== undefined && streaks.current === 4) {
+      add(1, '역대 기록', '5연승 달성 시 구단 역대 ' + (streaks.fivePlusCount+1) + '번째', 5);
+    }
+  }
+
+  // 규칙 2: 무패 기록
+  // 요일 무패
+  var wdNamesAll = ['일','월','화','수','목','금','토'];
+  var bestWd = null, bestWdName = '';
+  for(var di=0; di<7; di++) {
+    var tmp = weekdayStats(leagueM, di);
+    if(!bestWd || tmp.curUnbeaten > bestWd.curUnbeaten) { bestWd = tmp; bestWdName = wdNamesAll[di]; }
+  }
+  // 다음 경기 요일의 무패만 표시
+  var nextWdJS = nextDate ? nextDate.getDay() : -1;
+  var nextWdStat = nextDate ? weekdayStats(leagueM, nextWdJS) : null;
+  var nextWdName = nextDate ? wdNamesAll[nextWdJS] : '';
+  if(nextWdStat && nextWdStat.curUnbeaten >= 3) {
+    add(2, nextWdName+'요일 무패', nextWdName+'요일 ' + nextWdStat.curUnbeaten + '경기 연속 무패 (' + nextWdStat.curUnbeatenW + '승 ' + nextWdStat.curUnbeatenD + '무)', nextWdStat.curUnbeaten >= 10 ? 5 : nextWdStat.curUnbeaten >= 5 ? 4 : 3);
+  }
+
+  // 최근 N경기 무패
+  var recentUnbeaten = 0;
+  for(var ri=leagueM.length-1; ri>=0; ri--) {
+    if(leagueM[ri].result !== 'L') recentUnbeaten++;
+    else break;
+  }
+  if(recentUnbeaten >= 5) {
+    var ruW = leagueM.slice(-recentUnbeaten).filter(function(m){return m.result==='W';}).length;
+    var ruD = recentUnbeaten - ruW;
+    add(2, '최근 무패', '최근 ' + recentUnbeaten + '경기 무패 (' + ruW + '승 ' + ruD + '무)', recentUnbeaten >= 10 ? 5 : 4);
+  }
+
+  // 홈/원정 무패
+  if(nextVenue === 'H') {
+    var homeM = leagueM.filter(function(m){return m.venue==='H';});
+    var homeCur = 0;
+    for(var hi=homeM.length-1; hi>=0; hi--) {
+      if(homeM[hi].result !== 'L') homeCur++;
+      else break;
+    }
+    if(homeCur >= 3) {
+      add(2, '홈 무패', '홈 ' + homeCur + '경기 연속 무패', homeCur >= 8 ? 5 : 4);
+    }
+  }
+
+  // 규칙 3: 최근 N경기 득실점
+  var r3 = recent.games.slice(-3);
+  var gf3 = r3.reduce(function(s,m){return s+m.gf;},0);
+  var ga3 = r3.reduce(function(s,m){return s+m.ga;},0);
+  if(gf3 >= 9) add(3, '득점 폭발', '최근 3경기 ' + gf3 + '득점 ' + ga3 + '실점', 5);
+  else if(gf3 >= 7) add(3, '득점 강세', '최근 3경기 ' + gf3 + '득점 ' + ga3 + '실점', 4);
+  if(ga3 <= 1) add(3, '수비 강세', '최근 3경기 ' + ga3 + '실점', 4);
+
+  var r5gf = recent.gf, r5ga = recent.ga;
+  if(r5gf >= 12) add(3, '최근 5경기 득점', '최근 5경기 ' + r5gf + '득점 ' + r5ga + '실점', 4);
+  if(scoring.curScoring >= 5) add(3, '연속 득점', scoring.curScoring + '경기 연속 득점', scoring.curScoring >= 10 ? 5 : 4);
+  if(scoring.curClean >= 3) add(3, '연속 무실점', scoring.curClean + '경기 연속 무실점', 4);
+
+  // 규칙 4: 상대 전적
+  if(vs.found) {
+    // 통산 전적
+    if(vs.w > vs.l * 2) add(4, '통산 우세', '통산 ' + vs.w + '승 ' + vs.d + '무 ' + vs.l + '패 — 압도적 우세', 4);
+    else if(vs.w > vs.l) add(4, '통산 전적', '통산 ' + vs.w + '승 ' + vs.d + '무 ' + vs.l + '패', 3);
+
+    // 홈/원정 분리
+    if(nextVenue === 'H' && vs.homeW > vs.homeL) {
+      add(4, '홈 전적', '홈 전적 ' + vs.homeW + '승 ' + vs.homeD + '무 ' + vs.homeL + '패', 3);
+    }
+    if(nextVenue === 'A' && vs.awayW > 0) {
+      add(4, '원정 전적', '원정 ' + vs.awayW + '승 기록 중', 3);
+    }
+
+    // 연속 무패
+    if(vs.curUnbeaten >= 3) add(4, '상대 연속 무패', opp + ' 상대 ' + vs.curUnbeaten + '경기 연속 무패', vs.curUnbeaten >= 5 ? 5 : 4);
+
+    // 첫 홈 승리
+    if(nextVenue === 'H' && vs.firstHomeWin) add(4, '홈 첫 승 도전', opp + ' 상대 홈 첫 승 도전', 4);
+
+    // 최근 시즌 전적
+    if(vs.seasonStats && vs.seasonStats.length > 0) {
+      var recentSzn = vs.seasonStats[0];
+      if(recentSzn.w > recentSzn.l) {
+        add(4, '최근 시즌', recentSzn.season + '시즌 ' + recentSzn.w + '승 ' + recentSzn.d + '무 ' + recentSzn.l + '패', 3);
+      }
+    }
+  } else {
+    add(4, '첫 맞대결', opp + ' 상대 역사적 첫 맞대결', 4);
+  }
+
+  // 규칙 5: 2026 홈 성적
+  if(nextVenue === 'H' && home2026.length > 0) {
+    add(5, '2026 홈 성적', '2026시즌 홈 ' + hw + '승 ' + hd + '무 ' + hl_ + '패 (' + home2026.length + '경기)', hw > hl_ ? 3 : 2);
+  }
+
+  // 규칙 7: 월별 전적 (김도균 감독 리그+PO)
+  if(nextDate) {
+    var nextMonth = nextDate.getMonth() + 1; // 1~12
+    var moNames = {2:'2월',3:'3월',4:'4월',5:'5월',6:'6월',7:'7월',8:'8월',9:'9월',10:'10월',11:'11월',12:'12월'};
+    var moName = moNames[nextMonth] || (nextMonth + '월');
+
+    // 김도균 감독 전체 리그 경기에서 해당 월 추출
+    var kimMatches = matches.filter(function(m){ return m.season >= 2024 && m.match_no !== 0; });
+    var moAll = kimMatches.filter(function(m){ return m.date.getMonth()+1 === nextMonth; });
+    var moHome = moAll.filter(function(m){ return m.venue === 'H'; });
+    var moAway = moAll.filter(function(m){ return m.venue === 'A'; });
+    var moVenue = nextVenue === 'H' ? moHome : moAway;
+
+    if(moAll.length >= 3) {
+      var mow = moAll.filter(function(m){return m.result==='W';}).length;
+      var mod_ = moAll.filter(function(m){return m.result==='D';}).length;
+      var mol = moAll.filter(function(m){return m.result==='L';}).length;
+      var moWr = (mow/moAll.length*100).toFixed(0);
+      var moGF = moAll.reduce(function(s,m){return s+m.gf;},0);
+      var moGA = moAll.reduce(function(s,m){return s+m.ga;},0);
+      var moPPG = ((mow*3+mod_)/moAll.length).toFixed(2);
+
+      // 전체 월 평균과 비교
+      var totalPPG = (cr.w*3+cr.d) / cr.games;
+      var isStrong = +moPPG > totalPPG;
+      var score = isStrong ? 4 : 2;
+
+      add(7, moName + ' 전적 (김도균)', moName + ' ' + moAll.length + '경기 ' + mow + '승' + mod_ + '무' + mol + '패 승률' + moWr + '% / 평균 ' + (moGF/moAll.length).toFixed(1) + '득 ' + (moGA/moAll.length).toFixed(1) + '실', score);
+
+      // 홈/원정 분리 (3경기 이상)
+      if(moVenue.length >= 3) {
+        var vw = moVenue.filter(function(m){return m.result==='W';}).length;
+        var vd = moVenue.filter(function(m){return m.result==='D';}).length;
+        var vl = moVenue.filter(function(m){return m.result==='L';}).length;
+        var vWr = (vw/moVenue.length*100).toFixed(0);
+        var vLabel = nextVenue === 'H' ? '홈' : '원정';
+        var vScore = vWr >= 80 ? 5 : vWr >= 60 ? 4 : 3;
+        add(7, moName + ' ' + vLabel + ' 전적', moName + ' ' + vLabel + ' ' + moVenue.length + '경기 ' + vw + '승' + vd + '무' + vl + '패 승률' + vWr + '%', vScore);
+      }
+
+      // 득점율 특이사항
+      var moScored = moAll.filter(function(m){return m.gf>0;}).length;
+      var moScoredRate = (moScored/moAll.length*100).toFixed(0);
+      if(+moScoredRate >= 90) {
+        add(7, moName + ' 득점율', moName + ' ' + moAll.length + '경기 중 ' + moScored + '경기 득점 (득점율 ' + moScoredRate + '%)', 4);
+      }
+    }
+  }
+
+  // 규칙 6: 감독 체제
+  add(6, '김도균 감독', '김도균 감독 체제 K리그 ' + cr.w + '승 ' + cr.d + '무 ' + cr.l + '패 (' + cr.games + '경기)', 3);
+
+  // score 기준 정렬
+  items.sort(function(a,b){ return b.score - a.score; });
+
+  var star = items.filter(function(i){ return i.score >= 4; }).slice(0,5);
+  var extra = items.filter(function(i){ return i.score < 4; }).slice(0,5);
+
+  // ── 렌더링 ───────────────────────────────────────────────────
+  function row(item, isStar) {
+    return '<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">'
+      + '<div style="flex:1">'
+      + '<div style="font-size:.7rem;color:var(--gray);margin-bottom:2px">' + item.label + '</div>'
+      + '<div style="font-size:.85rem;color:var(--white)">' + (isStar ? '<span style="color:var(--gold2)">★ </span>' : '') + item.text + '</div>'
+      + '</div>'
+      + '</div>';
+  }
+
+  var html = '<div class="card">'
+    + '<div class="card-title">✨ AI 홍보 소재 분석 <span style="font-size:.65rem;color:var(--gray);font-weight:400">vs ' + opp + ' · 규칙 기반 자동 분석</span></div>'
+
+    + '<div style="margin-bottom:20px;">'
+    + '<div style="font-size:.68rem;letter-spacing:1.5px;color:var(--gold);font-weight:700;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--gold-dim)">★ 핵심 홍보 소재 (최대 5개)</div>'
+    + (star.length ? star.map(function(i){return row(i,true);}).join('') : '<div style="color:var(--gray);font-size:.8rem;padding:8px 0">해당 소재 없음</div>')
+    + '</div>'
+
+    + '<div style="margin-bottom:20px;">'
+    + '<div style="font-size:.68rem;letter-spacing:1.5px;color:var(--gray);font-weight:700;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border)">추가 활용 소재</div>'
+    + (extra.length ? extra.map(function(i){return row(i,false);}).join('') : '<div style="color:var(--gray);font-size:.8rem;padding:8px 0">해당 소재 없음</div>')
+    + '</div>'
+
+
+    + '</div>';
+
+  container.innerHTML = html;
+}
+
 
 function renderHistoryTab() {
   var container = document.getElementById('history-container');
