@@ -1342,7 +1342,7 @@ function seasonCompare(matches) {
     bySeason[m.season].push(m);
   }
   return Object.entries(bySeason).map(([s,ms])=>{
-    const first8=ms.slice(0,8);
+    const first8=ms.slice(0,9);
     return { season:+s, games:first8.length,
       w:first8.filter(m=>m.result==='W').length,
       d:first8.filter(m=>m.result==='D').length,
@@ -1401,7 +1401,7 @@ function renderReport(opp, venue, nextDate, wdJS) {
   if(curSeason){
     const ranked=seasons.filter(s=>s.games===8).sort((a,b)=>b.pts-a.pts);
     const rank=ranked.findIndex(s=>s.season===2026)+1;
-    cat1.push(`2026시즌 초반 8경기 <strong>${curSeason.pts}점</strong> — 역대 ${rank}위`);
+    cat1.push(`2026시즌 초반 9경기 <strong>${curSeason.pts}점</strong> — 역대 ${rank}위`);
   }
 
   // CAT2: 상대 관련
@@ -1584,7 +1584,7 @@ function renderReport(opp, venue, nextDate, wdJS) {
 
   <div class="grid-full">
     <div class="card">
-      <div class="card-title">시즌 초반 8경기 성적 비교 (역대)</div>
+      <div class="card-title">시즌 초반 9경기 성적 비교 (역대)</div>
       <div style="overflow-x:auto;">
         <table class="season-table">
           <thead><tr>
